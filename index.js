@@ -53,6 +53,11 @@ async function openBrowser(link, pluspath) {
         otp.fullPath = link + otp.name;
         if (otp.type === "Up") delete otp.fullPath;
         if (otp.type === "Directory") otp.fullPath += '/';
+
+        let altn = (await rows[0].findElement(By.css('a')).getAttribute('href')).split("/");
+        otp.altpath = link + altn[altn.length-1];
+        otp.altname = altn[altn.length-1];
+
         //console.log(otp);
         allotp.push(otp);
     }
@@ -65,8 +70,17 @@ async function openBrowser(link, pluspath) {
             await openBrowser(allotp[i].fullPath, pluspath + `${allotp[i].name}/`);
             continue;
         }
+        
         console.log(`Downloading file (${allotp[i].size}) from ${folderName}/${pluspath}${allotp[i].name}`);
-        await downloadFile(allotp[i].fullPath, `${folderName}/${pluspath}${allotp[i].name}`)
+        try {
+            await downloadFile(allotp[i].fullPath, `${folderName}/${pluspath}${allotp[i].name}`)
+        }
+        catch(e) {
+            console.log(e)
+            console.log("Trying to download using altname");
+            await downloadFile(allotp[i].altpath, `${folderName}/${pluspath}${allotp[i].altname}`.replace(/%/g, ''))
+
+        }
 
     }
     console.log(`Writing json file at ${folderName}/${pluspath}files.json`)
@@ -79,7 +93,7 @@ async function downloadFile(url, destinationPath) {
 
         https.get(url, (response) => {
             if (response.statusCode !== 200) {
-                reject(new Error(`Failed to download file. Status code: ${response.statusCode}`));
+                reject(new Error(`Failed to download file from ${url}. Status code: ${response.statusCode}`));
                 return;
             }
 
@@ -115,6 +129,7 @@ async function checkAndCreateFolder(folderPath) {
         // Check if the folder exists
         await fs.promises.access(folderPath);
         console.log(`Folder already exists at: ${folderPath}\nbackup the folder and try again`);
+        //throw new Error("skiping folder check (not recommended)");
     } catch (error) {
         // If the folder doesn't exist, create it
         if (error.code === 'ENOENT') {
